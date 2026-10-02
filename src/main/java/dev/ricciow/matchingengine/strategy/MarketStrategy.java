@@ -1,6 +1,6 @@
 package dev.ricciow.matchingengine.strategy;
 
-import dev.ricciow.matchingengine.book.Order;
+import dev.ricciow.matchingengine.book.ExecutionResult;
 import dev.ricciow.matchingengine.book.OrderBook;
 import dev.ricciow.matchingengine.book.Side;
 
@@ -18,12 +18,11 @@ public final class MarketStrategy implements OrderStrategy {
     }
 
     @Override
-    public Optional<Order> execute(OrderBook book, Side side) {
+    public ExecutionResult execute(OrderBook book, Side side) {
         Side opposite = switch (side) {
             case BUY -> Side.SELL;
             case SELL -> Side.BUY;
         };
-        book.ConsumeOrders(opposite, quantity);
-        return Optional.empty();
+        return new ExecutionResult(Optional.empty(), book.ConsumeOrders(opposite, quantity));
     }
 }

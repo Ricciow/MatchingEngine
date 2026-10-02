@@ -14,6 +14,12 @@ permite localizar ordens para consulta, atualização e remoção.
 
 ## Ordens
 
+Toda order retorna um resultado com dois campos:
+
+- `order`: a ordem que ficou no livro. É vazia para orders do tipo Market.
+- `trades`: a lista de execuções. É vazia para Limit e contém um trade por fill
+  para Market, incluindo fills parciais.
+
 ### Tipo Limit
 
 Cria uma nova ordem no livro pelo preço e quantidade informados. A Limit não

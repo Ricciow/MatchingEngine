@@ -40,7 +40,7 @@ public final class OrderBook {
     private long nextPriority = 1;
 
     /** Executes an order using its strategy. */
-    public Optional<Order> executeOrder(Side side, OrderStrategy strategy) {
+    public ExecutionResult executeOrder(Side side, OrderStrategy strategy) {
         return strategy.execute(this, side);
     }
 

@@ -1,5 +1,6 @@
 package dev.ricciow.matchingengine.strategy;
 
+import dev.ricciow.matchingengine.book.ExecutionResult;
 import dev.ricciow.matchingengine.book.Order;
 import dev.ricciow.matchingengine.book.OrderBook;
 import dev.ricciow.matchingengine.book.Side;
@@ -25,8 +26,10 @@ class LimitStrategyTest {
     @EnumSource(Side.class)
     @DisplayName("Limit insere uma ordem no livro vazio com o preço informado")
     void LimitAddsOrderToEmptyBook(Side side) {
-        Order order = book.executeOrder(side, new LimitStrategy(100, 10.50)).orElseThrow();
+        ExecutionResult result = book.executeOrder(side, new LimitStrategy(100, 10.50));
+        Order order = result.order().orElseThrow();
 
+        assertTrue(result.trades().isEmpty());
         assertNotNull(order.id());
         assertEquals(side, order.side());
         assertEquals(10.50, order.price());
@@ -43,9 +46,8 @@ class LimitStrategyTest {
         Side opposite = side == BUY ? SELL : BUY;
         double oppositePrice = side == BUY ? 10.50 : 10.00;
         double price = side == BUY ? 10.49 : 10.01;
-        Order existing = book.executeOrder(opposite, new LimitStrategy(200, oppositePrice)).orElseThrow();
-
-        Order added = book.executeOrder(side, new LimitStrategy(100, price)).orElseThrow();
+        Order existing = book.executeOrder(opposite, new LimitStrategy(200, oppositePrice)).order().orElseThrow();
+        Order added = book.executeOrder(side, new LimitStrategy(100, price)).order().orElseThrow();
 
         assertEquals(List.of(existing), book.getOrders(opposite));
         assertEquals(List.of(added), book.getOrders(side));
@@ -64,10 +66,12 @@ class LimitStrategyTest {
             Side side, double oppositePrice, double crossingPrice
     ) {
         Side opposite = side == BUY ? SELL : BUY;
-        Order existing = book.executeOrder(opposite, new LimitStrategy(200, oppositePrice)).orElseThrow();
+        Order existing = book.executeOrder(opposite, new LimitStrategy(200, oppositePrice)).order().orElseThrow();
 
-        Order added = book.executeOrder(side, new LimitStrategy(100, crossingPrice)).orElseThrow();
+        ExecutionResult result = book.executeOrder(side, new LimitStrategy(100, crossingPrice));
+        Order added = result.order().orElseThrow();
 
+        assertTrue(result.trades().isEmpty());
         assertEquals(crossingPrice, added.price());
         assertEquals(100, added.quantity());
         assertEquals(List.of(added), book.getOrders(side));
@@ -84,14 +88,14 @@ class LimitStrategyTest {
         Side opposite = side == BUY ? SELL : BUY;
         double firstPrice = side == BUY ? 10.50 : 10.00;
         double secondPrice = side == BUY ? 11.00 : 9.99;
-        Order first = book.executeOrder(opposite, new LimitStrategy(100, firstPrice)).orElseThrow();
-        Order second = book.executeOrder(opposite, new LimitStrategy(200, secondPrice)).orElseThrow();
+        Order first = book.executeOrder(opposite, new LimitStrategy(100, firstPrice)).order().orElseThrow();
+        Order second = book.executeOrder(opposite, new LimitStrategy(200, secondPrice)).order().orElseThrow();
         double restingPrice = side == BUY ? 9.00 : 11.50;
-        Order resting = book.executeOrder(side, new LimitStrategy(50, restingPrice)).orElseThrow();
+        Order resting = book.executeOrder(side, new LimitStrategy(50, restingPrice)).order().orElseThrow();
         List<Order> oppositeBefore = book.getOrders(opposite);
         double crossingPrice = side == BUY ? 11.00 : 9.99;
 
-        Order added = book.executeOrder(side, new LimitStrategy(quantity, crossingPrice)).orElseThrow();
+        Order added = book.executeOrder(side, new LimitStrategy(quantity, crossingPrice)).order().orElseThrow();
 
         assertEquals(crossingPrice, added.price());
         assertEquals(quantity, added.quantity());
@@ -107,9 +111,9 @@ class LimitStrategyTest {
     @EnumSource(Side.class)
     @DisplayName("Limits no mesmo preço mantem a prioridade de chegada")
     void LimitKeepsSamePriceOrdersInArrivalOrder(Side side) {
-        Order first = book.executeOrder(side, new LimitStrategy(100, 10.50)).orElseThrow();
-        Order second = book.executeOrder(side, new LimitStrategy(200, 10.50)).orElseThrow();
-        Order third = book.executeOrder(side, new LimitStrategy(300, 10.50)).orElseThrow();
+        Order first = book.executeOrder(side, new LimitStrategy(100, 10.50)).order().orElseThrow();
+        Order second = book.executeOrder(side, new LimitStrategy(200, 10.50)).order().orElseThrow();
+        Order third = book.executeOrder(side, new LimitStrategy(300, 10.50)).order().orElseThrow();
 
         assertEquals(List.of(first, second, third), book.getOrders(side));
         assertTrue(first.priority() < second.priority());
@@ -119,9 +123,9 @@ class LimitStrategyTest {
     @Test
     @DisplayName("Limits usam a sequência de prioridade compartilhada pelos dois lados")
     void LimitUsesPriorityAcrossBothSides() {
-        Order buy = book.executeOrder(BUY, new LimitStrategy(100, 10.00)).orElseThrow();
-        Order sell = book.executeOrder(SELL, new LimitStrategy(200, 10.50)).orElseThrow();
-        Order nextBuy = book.executeOrder(BUY, new LimitStrategy(300, 10.00)).orElseThrow();
+        Order buy = book.executeOrder(BUY, new LimitStrategy(100, 10.00)).order().orElseThrow();
+        Order sell = book.executeOrder(SELL, new LimitStrategy(200, 10.50)).order().orElseThrow();
+        Order nextBuy = book.executeOrder(BUY, new LimitStrategy(300, 10.00)).order().orElseThrow();
 
         assertTrue(buy.priority() < sell.priority());
         assertTrue(sell.priority() < nextBuy.priority());
@@ -134,8 +138,8 @@ class LimitStrategyTest {
     void LimitCreatesDistinctOrdersWhenStrategyIsReused() {
         OrderStrategy strategy = new LimitStrategy(100, 10.50);
 
-        Order first = book.executeOrder(BUY, strategy).orElseThrow();
-        Order second = book.executeOrder(BUY, strategy).orElseThrow();
+        Order first = book.executeOrder(BUY, strategy).order().orElseThrow();
+        Order second = book.executeOrder(BUY, strategy).order().orElseThrow();
 
         assertNotEquals(first.id(), second.id());
         assertTrue(first.priority() < second.priority());

@@ -1,8 +1,10 @@
 package dev.ricciow.matchingengine.strategy;
 
+import dev.ricciow.matchingengine.book.ExecutionResult;
 import dev.ricciow.matchingengine.book.Order;
 import dev.ricciow.matchingengine.book.OrderBook;
 import dev.ricciow.matchingengine.book.Side;
+import dev.ricciow.matchingengine.trade.Trade;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -33,7 +35,7 @@ class MarketStrategyTest {
     @EnumSource(Side.class)
     @DisplayName("Market não consome ordens do próprio lado")
     void MarketOnlyConsumesOppositeOrders(Side side) {
-        Order existing = book.executeOrder(side, new LimitStrategy(100, 10.50)).orElseThrow();
+        Order existing = book.executeOrder(side, new LimitStrategy(100, 10.50)).order().orElseThrow();
 
         assertThrows(IllegalStateException.class, () -> book.executeOrder(side, new MarketStrategy(100)));
 
@@ -43,14 +45,16 @@ class MarketStrategyTest {
 
     @ParameterizedTest
     @EnumSource(Side.class)
-    @DisplayName("Market executa no lado oposto, preserva o próprio lado e retorna vazio")
+    @DisplayName("Market retorna os trades do lado oposto sem deixar uma ordem no livro")
     void MarketExecutesOppositeOrdersWithoutResting(Side side) {
         Side opposite = opposite(side);
-        Order sameSide = book.executeOrder(side, new LimitStrategy(100, 10.50)).orElseThrow();
-        Order existing = book.executeOrder(opposite, new LimitStrategy(100, 10.50)).orElseThrow();
+        Order sameSide = book.executeOrder(side, new LimitStrategy(100, 10.50)).order().orElseThrow();
+        Order existing = book.executeOrder(opposite, new LimitStrategy(100, 10.50)).order().orElseThrow();
 
-        assertTrue(book.executeOrder(side, new MarketStrategy(100)).isEmpty());
+        ExecutionResult result = book.executeOrder(side, new MarketStrategy(100));
 
+        assertTrue(result.order().isEmpty());
+        assertEquals(List.of(new Trade(10.50, 100)), result.trades());
         assertTrue(book.getOrderById(existing.id()).isEmpty());
         assertTrue(book.getOrders(opposite).isEmpty());
         assertEquals(List.of(sameSide), book.getOrders(side));
@@ -62,9 +66,9 @@ class MarketStrategyTest {
     @DisplayName("Market com liquidez insuficiente lança erro sem consumir nenhuma ordem")
     void MarketRejectsInsufficientLiquidity(Side side) {
         Side opposite = opposite(side);
-        Order sameSide = book.executeOrder(side, new LimitStrategy(100, 10.50)).orElseThrow();
-        Order first = book.executeOrder(opposite, new LimitStrategy(50, 10.50)).orElseThrow();
-        Order second = book.executeOrder(opposite, new LimitStrategy(75, 10.50)).orElseThrow();
+        Order sameSide = book.executeOrder(side, new LimitStrategy(100, 10.50)).order().orElseThrow();
+        Order first = book.executeOrder(opposite, new LimitStrategy(50, 10.50)).order().orElseThrow();
+        Order second = book.executeOrder(opposite, new LimitStrategy(75, 10.50)).order().orElseThrow();
 
         assertThrows(IllegalStateException.class, () -> book.executeOrder(side, new MarketStrategy(200)));
 
@@ -80,11 +84,28 @@ class MarketStrategyTest {
         book.executeOrder(SELL, new LimitStrategy(300, 10.50));
         MarketStrategy strategy = new MarketStrategy(100);
 
-        book.executeOrder(BUY, strategy);
+        ExecutionResult first = book.executeOrder(BUY, strategy);
         assertEquals(200, book.bestOrder(SELL).orElseThrow().quantity());
-        book.executeOrder(BUY, strategy);
+        ExecutionResult second = book.executeOrder(BUY, strategy);
 
+        assertEquals(List.of(new Trade(10.50, 100)), first.trades());
+        assertEquals(first.trades(), second.trades());
         assertEquals(100, book.bestOrder(SELL).orElseThrow().quantity());
+    }
+
+    @ParameterizedTest
+    @EnumSource(Side.class)
+    @DisplayName("Market retorna um trade por fill, incluindo o último fill parcial")
+    void MarketReturnsTradesForEachFill(Side side) {
+        Side opposite = opposite(side);
+        book.executeOrder(opposite, new LimitStrategy(100, 10.50));
+        Order second = book.executeOrder(opposite, new LimitStrategy(200, 10.50)).order().orElseThrow();
+
+        ExecutionResult result = book.executeOrder(side, new MarketStrategy(150));
+
+        assertTrue(result.order().isEmpty());
+        assertEquals(List.of(new Trade(10.50, 100), new Trade(10.50, 50)), result.trades());
+        assertEquals(150, book.getOrderById(second.id()).orElseThrow().quantity());
     }
 
     @ParameterizedTest
