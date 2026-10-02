@@ -28,7 +28,7 @@ class OrderBookConsumptionTest {
 
     @ParameterizedTest
     @EnumSource(Side.class)
-    @DisplayName("O livro consome por preço e prioridade e gera um trade por ordem preenchida")
+    @DisplayName("O livro consome por preço e prioridade e agrupa os trades por preço")
     void BookConsumesOrdersByPriceAndPriority(Side side) {
         double bestPrice = side == BUY ? 11.00 : 10.00;
         double worstPrice = side == BUY ? 10.00 : 11.00;
@@ -38,7 +38,7 @@ class OrderBookConsumptionTest {
 
         List<Trade> trades = book.ConsumeOrders(side, 175);
 
-        assertEquals(List.of(new Trade(bestPrice, 50), new Trade(bestPrice, 100), new Trade(worstPrice, 25)), trades);
+        assertEquals(List.of(new Trade(bestPrice, 150), new Trade(worstPrice, 25)), trades);
         assertTrue(book.getOrderById(first.id()).isEmpty());
         assertTrue(book.getOrderById(second.id()).isEmpty());
         Order remaining = new Order(worst.id(), worst.priority(), side, worstPrice, 75);
@@ -88,8 +88,7 @@ class OrderBookConsumptionTest {
         Side opposite = side == BUY ? SELL : BUY;
         Order otherSide = book.addOrder(opposite, 10.50, 50);
 
-        assertEquals(List.of(new Trade(10.50, 100), new Trade(10.50, 200)), book.ConsumeOrders(side, 300));
-
+        assertEquals(List.of(new Trade(10.50, 300)), book.ConsumeOrders(side, 300));
         assertTrue(book.getOrders(side).isEmpty());
         assertTrue(book.bestPrice(side).isEmpty());
         assertTrue(book.getOrderById(first.id()).isEmpty());

@@ -95,16 +95,16 @@ class MarketStrategyTest {
 
     @ParameterizedTest
     @EnumSource(Side.class)
-    @DisplayName("Market retorna um trade por fill, incluindo o último fill parcial")
-    void MarketReturnsTradesForEachFill(Side side) {
+    @DisplayName("Market soma os fills no mesmo preço em um único trade")
+    void MarketReturnsTradesByPrice(Side side) {
         Side opposite = opposite(side);
-        book.executeOrder(opposite, new LimitStrategy(100, 10.50));
-        Order second = book.executeOrder(opposite, new LimitStrategy(200, 10.50)).order().orElseThrow();
+        book.executeOrder(opposite, new LimitStrategy(100, 20.00));
+        Order second = book.executeOrder(opposite, new LimitStrategy(200, 20.00)).order().orElseThrow();
 
         ExecutionResult result = book.executeOrder(side, new MarketStrategy(150));
 
         assertTrue(result.order().isEmpty());
-        assertEquals(List.of(new Trade(10.50, 100), new Trade(10.50, 50)), result.trades());
+        assertEquals(List.of(new Trade(20.00, 150)), result.trades());
         assertEquals(150, book.getOrderById(second.id()).orElseThrow().quantity());
     }
 

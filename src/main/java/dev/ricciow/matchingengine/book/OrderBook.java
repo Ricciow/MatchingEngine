@@ -113,7 +113,7 @@ public final class OrderBook {
         return false;
     }
 
-    /** Validates liquidity, then emits one trade per filled resting order. */
+    /** Validates liquidity, then aggregates fills by price in execution order. */
     public List<Trade> ConsumeOrders(Side side, long quantity) {
         if (quantity <= 0) {
             throw new IllegalArgumentException("Quantity must be positive");
@@ -123,6 +123,8 @@ public final class OrderBook {
         }
 
         List<Trade> trades = new ArrayList<>();
+        double tradePrice = 0;
+        long tradeQuantity = 0;
         for (Order order : getOrders(side)) {
             if (quantity == 0) {
                 break;
@@ -135,9 +137,15 @@ public final class OrderBook {
             } else {
                 updateOrder(order.id(), order.price(), order.quantity() - reduction);
             }
-            trades.add(new Trade(order.price(), reduction));
+            if (tradeQuantity > 0 && tradePrice != order.price()) {
+                trades.add(new Trade(tradePrice, tradeQuantity));
+                tradeQuantity = 0;
+            }
+            tradePrice = order.price();
+            tradeQuantity += reduction;
         }
-        return trades;
+        trades.add(new Trade(tradePrice, tradeQuantity));
+        return List.copyOf(trades);
     }
 
     private NavigableMap<OrderKey, Order> ordersFor(Side side) {
