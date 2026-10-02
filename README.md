@@ -16,9 +16,10 @@ permite localizar ordens para consulta, atualização e remoção.
 
 Toda order retorna um resultado com dois campos:
 
-- `order`: a ordem que ficou no livro. É vazia para orders do tipo Market.
-- `trades`: a lista de execuções. É vazia para Limit e Cancelamento. 
-Contém um trade por fill para Market, incluindo fills parciais.
+- `order`: a ordem que ficou no livro, inserida pela Limit ou atualizada pela Update.
+É vazia para Market, Cancelamento.
+- `trades`: a lista de execuções. É vazia para Limit, Cancelamento e Update.
+Para Market, contém um trade por preço, somando os fills nesse preço.
 
 ### Tipo Limit
 
@@ -44,3 +45,9 @@ gerar orders que não são totalmente preenchidas, como tentar comprar 150 quand
 ### Cancelamento
 
 Remove uma ordem por seu id do livro.
+
+### Atualização
+
+Atualiza uma ordem por seu ‘id’, alterando o seu preço ou quantidade a comprar/vender, 
+alterar a quantidade modifica o valor restante a ser comprado. Assim como nas pegs, 
+uma atualização não altera sua prioridade chegada, apenas a prioridade de preço.
