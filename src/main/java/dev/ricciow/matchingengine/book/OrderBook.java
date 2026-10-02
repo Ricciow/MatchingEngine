@@ -1,6 +1,8 @@
 package dev.ricciow.matchingengine.book;
 
 import dev.ricciow.matchingengine.strategy.OrderStrategy;
+import dev.ricciow.matchingengine.trade.Trade;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
@@ -72,6 +74,20 @@ public final class OrderBook {
         return Optional.ofNullable(ordersById.get(id));
     }
 
+    /** Updates price and quantity while preserving identity, side and arrival priority. */
+    public Optional<Order> updateOrder(UUID id, double price, long quantity) {
+        Order order = ordersById.get(id);
+        if (order == null) {
+            return Optional.empty();
+        }
+
+        Order updated = new Order(id, order.priority(), order.side(), price, quantity);
+        removeOrder(id);
+        ordersFor(order.side()).put(OrderKey.from(updated), updated);
+        ordersById.put(id, updated);
+        return Optional.of(updated);
+    }
+
     public Optional<Order> removeOrder(UUID id) {
         Order order = ordersById.remove(id);
         if (order == null) {
@@ -80,6 +96,48 @@ public final class OrderBook {
 
         ordersFor(order.side()).remove(OrderKey.from(order));
         return Optional.of(order);
+    }
+
+    /** Checks the given side's liquidity without changing any orders. */
+    public boolean canConsume(Side side, long quantity) {
+        if (quantity <= 0) {
+            return false;
+        }
+
+        for (Order order : ordersFor(side).values()) {
+            if (order.quantity() >= quantity) {
+                return true;
+            }
+            quantity -= order.quantity();
+        }
+        return false;
+    }
+
+    /** Validates liquidity, then emits one trade per filled resting order. */
+    public List<Trade> ConsumeOrders(Side side, long quantity) {
+        if (quantity <= 0) {
+            throw new IllegalArgumentException("Quantity must be positive");
+        }
+        if (!canConsume(side, quantity)) {
+            throw new IllegalStateException("Insufficient liquidity on " + side + ": requested " + quantity);
+        }
+
+        List<Trade> trades = new ArrayList<>();
+        for (Order order : getOrders(side)) {
+            if (quantity == 0) {
+                break;
+            }
+            long reduction = Math.min(order.quantity(), quantity);
+            quantity -= reduction;
+
+            if (reduction == order.quantity()) {
+                removeOrder(order.id());
+            } else {
+                updateOrder(order.id(), order.price(), order.quantity() - reduction);
+            }
+            trades.add(new Trade(order.price(), reduction));
+        }
+        return trades;
     }
 
     private NavigableMap<OrderKey, Order> ordersFor(Side side) {
