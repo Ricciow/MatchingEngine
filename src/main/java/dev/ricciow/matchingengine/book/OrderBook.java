@@ -1,5 +1,6 @@
 package dev.ricciow.matchingengine.book;
 
+import dev.ricciow.matchingengine.strategy.OrderStrategy;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
@@ -35,6 +36,11 @@ public final class OrderBook {
     private final Map<UUID, Order> ordersById = new HashMap<>();
 
     private long nextPriority = 1;
+
+    /** Executes an order using its strategy. */
+    public Optional<Order> executeOrder(Side side, OrderStrategy strategy) {
+        return strategy.execute(this, side);
+    }
 
     /** Adds a resting order without matching it against the opposite side. */
     public Order addOrder(Side side, double price, long quantity) {
