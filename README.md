@@ -16,10 +16,11 @@ permite localizar ordens para consulta, atualização e remoção.
 
 Toda order retorna um resultado com dois campos:
 
-- `order`: a ordem que ficou no livro, inserida pela Limit ou atualizada pela Update.
+- `order`: a ordem que ficou no livro, inserida pela Limit ou Peg, ou atualizada pela Update.
 É vazia para Market, Cancelamento.
-- `trades`: a lista de execuções. É vazia para Limit, Cancelamento e Update.
-Para Market, contém um trade por preço, somando os fills nesse preço.
+- `trades`: a lista de execuções. É vazia para Limit, Peg, Cancelamento e Update.
+Para Market, soma os fills consecutivos no mesmo preço em um trade.
+Se o preço reaparecer após outro preço, gera um novo trade.
 
 ### Tipo Limit
 
@@ -42,6 +43,17 @@ Se forem solicitadas 150 unidades e houver apenas 100, executa as 100 disponíve
 A quantidade não preenchida é descartada; a Market não fica no livro. Se o lado
 oposto estiver vazio, retorna uma lista de trades vazia.
 
+### Tipo Peg
+
+Ordens Peg acompanham o melhor preço das Limits do mesmo lado: compras seguem
+o Bid e vendas seguem o Offer. Sem uma Limit de referência, usam o preço de 1 centavo,
+pois orders com valor 0 são inválidas e esse teoricamente seria o menor valor possível.
+As Pegs atualizam o seu preço assim que a referência muda, inclusive entre fills
+de um Market. O próximo fill considera o novo preço e a prioridade original.
+Um fill parcial altera apenas a quantidade restante, sem recalcular os preços.
+O repricing preserva a prioridade de chegada. Ao mudar para um preço onde já
+existem outras ordens, a Peg é posicionada conforme sua chegada original.
+
 ### Cancelamento
 
 Remove uma ordem por seu id do livro.
@@ -51,3 +63,5 @@ Remove uma ordem por seu id do livro.
 Atualiza uma ordem por seu ‘id’, alterando o seu preço ou quantidade a comprar/vender, 
 alterar a quantidade modifica o valor restante a ser comprado. Assim como nas pegs, 
 uma atualização não altera sua prioridade chegada, apenas a prioridade de preço.
+Para ordens com price policy, como o peg, o preço é ignorado e apenas a quantidade
+é alterada, pois o preço do peg é definido pelas outras orders.

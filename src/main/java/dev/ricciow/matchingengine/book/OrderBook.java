@@ -1,15 +1,18 @@
 package dev.ricciow.matchingengine.book;
 
 import dev.ricciow.matchingengine.strategy.OrderStrategy;
+import dev.ricciow.matchingengine.policy.PriceUpdatePolicy;
 import dev.ricciow.matchingengine.trade.Trade;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.NavigableMap;
 import java.util.Optional;
 import java.util.OptionalDouble;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.UUID;
 
@@ -36,6 +39,8 @@ public final class OrderBook {
     private final NavigableMap<OrderKey, Order> buys = new TreeMap<>(BUY_PRIORITY);
     private final NavigableMap<OrderKey, Order> sells = new TreeMap<>(SELL_PRIORITY);
     private final Map<UUID, Order> ordersById = new HashMap<>();
+    private final Set<UUID> buyPricePolicyOrderIds = new HashSet<>();
+    private final Set<UUID> sellPricePolicyOrderIds = new HashSet<>();
 
     private long nextPriority = 1;
 
@@ -46,14 +51,21 @@ public final class OrderBook {
 
     /** Adds a resting order without matching it against the opposite side. */
     public Order addOrder(Side side, double price, long quantity) {
+        return addOrder(side, price, quantity, null);
+    }
+
+    public Order addOrder(Side side, double price, long quantity, PriceUpdatePolicy priceUpdatePolicy) {
         UUID id = UUID.randomUUID();
-        Order order = new Order(id, nextPriority, side, price, quantity);
+        Order order = new Order(id, nextPriority, side, price, quantity, priceUpdatePolicy);
+        storeOrder(order);
 
-        ordersFor(side).put(OrderKey.from(order), order);
-        ordersById.put(id, order);
+        if (priceUpdatePolicy != null) {
+            pricePolicyOrderIdsFor(side).add(id);
+        }
+
         nextPriority++;
-
-        return order;
+        updatePolicyPrices(side);
+        return ordersById.get(id);
     }
 
     public Optional<Order> bestOrder(Side side) {
@@ -64,6 +76,16 @@ public final class OrderBook {
     public OptionalDouble bestPrice(Side side) {
         Optional<Order> order = bestOrder(side);
         return order.map(value -> OptionalDouble.of(value.price())).orElseGet(OptionalDouble::empty);
+    }
+
+    /** Returns the best price on this side, excluding orders with a price policy. */
+    public OptionalDouble bestLimitPrice(Side side) {
+        for (Order order : ordersFor(side).values()) {
+            if (order.priceUpdatePolicy() == null) {
+                return OptionalDouble.of(order.price());
+            }
+        }
+        return OptionalDouble.empty();
     }
 
     public List<Order> getOrders(Side side) {
@@ -77,59 +99,109 @@ public final class OrderBook {
     /** Updates price and quantity while preserving identity, side and arrival priority. */
     public Optional<Order> updateOrder(UUID id, double price, long quantity) {
         Order order = ordersById.get(id);
-        if (order == null) {
-            return Optional.empty();
-        }
+        if (order == null) return Optional.empty();
 
-        Order updated = new Order(id, order.priority(), order.side(), price, quantity);
-        removeOrder(id);
-        ordersFor(order.side()).put(OrderKey.from(updated), updated);
-        ordersById.put(id, updated);
-        return Optional.of(updated);
+        if (order.priceUpdatePolicy() != null) {
+            price = order.price();
+        }
+        Order updated = new Order(id, order.priority(), order.side(), price, quantity,
+                order.priceUpdatePolicy());
+        storeOrder(updated);
+
+        if (price != order.price()) {
+            updatePolicyPrices(order.side());
+        }
+        return getOrderById(id);
     }
 
     public Optional<Order> removeOrder(UUID id) {
         Order order = ordersById.remove(id);
-        if (order == null) {
-            return Optional.empty();
-        }
+        if (order == null) return Optional.empty();
 
         ordersFor(order.side()).remove(OrderKey.from(order));
+
+        pricePolicyOrderIdsFor(order.side()).remove(id);
+        updatePolicyPrices(order.side());
         return Optional.of(order);
     }
 
-    /** Consumes available liquidity and aggregates fills by price in execution order. */
+    /** Consumes up to the requested quantity, preserving any unfilled remainder. */
+    public Trade ConsumeOrder(UUID id, long quantity) {
+        if (quantity <= 0) {
+            throw new IllegalArgumentException("Quantity must be positive");
+        }
+
+        Order order = getOrderById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Order not found"));
+        long filled = Math.min(quantity, order.quantity());
+        if (filled == order.quantity()) {
+            removeOrder(id);
+        } else {
+            updateOrder(id, order.price(), order.quantity() - filled);
+        }
+        return new Trade(order.price(), filled);
+    }
+
+    /** Consumes the current best orders, refreshing prices after fully consumed orders. */
     public List<Trade> ConsumeOrders(Side side, long quantity) {
         if (quantity <= 0) {
             throw new IllegalArgumentException("Quantity must be positive");
         }
 
         List<Trade> trades = new ArrayList<>();
-        double tradePrice = 0;
-        long tradeQuantity = 0;
-        for (Order order : getOrders(side)) {
-            if (quantity == 0) {
-                break;
-            }
-            long reduction = Math.min(order.quantity(), quantity);
-            quantity -= reduction;
+        while (quantity > 0 && !ordersFor(side).isEmpty()) {
+            Order order = bestOrder(side).orElseThrow();
+            Trade trade = ConsumeOrder(order.id(), quantity);
+            trades.add(trade);
+            quantity -= trade.quantity();
+        }
+        return consolidateTrades(trades);
+    }
 
-            if (reduction == order.quantity()) {
-                removeOrder(order.id());
-            } else {
-                updateOrder(order.id(), order.price(), order.quantity() - reduction);
+    /** Merges multiple trades of the same price into one */
+    private List<Trade> consolidateTrades(List<Trade> trades) {
+        List<Trade> consolidated = new ArrayList<>();
+        double lastPrice = 0;
+        long lastQty = 0;
+        for (Trade trade : trades) {
+            if (lastQty > 0 && trade.price() != lastPrice) {
+                consolidated.add(new Trade(lastPrice, lastQty));
+                lastQty = 0;
             }
-            if (tradeQuantity > 0 && tradePrice != order.price()) {
-                trades.add(new Trade(tradePrice, tradeQuantity));
-                tradeQuantity = 0;
+            lastPrice = trade.price();
+            lastQty += trade.quantity();
+        }
+        if (lastQty > 0) {
+            consolidated.add(new Trade(lastPrice, lastQty));
+        }
+        return consolidated;
+    }
+
+    /** Runs the policy on all orders with policies */
+    private void updatePolicyPrices(Side side) {
+        for (UUID id : pricePolicyOrderIdsFor(side)) {
+            Order order = ordersById.get(id);
+            double price = order.priceUpdatePolicy().resolvePrice(this, side);
+            if (price != order.price()) {
+                storeOrder(new Order(id, order.priority(), side, price, order.quantity(), order.priceUpdatePolicy()));
             }
-            tradePrice = order.price();
-            tradeQuantity += reduction;
         }
-        if (tradeQuantity > 0) {
-            trades.add(new Trade(tradePrice, tradeQuantity));
+    }
+
+    /** Internal update method for orders */
+    private void storeOrder(Order order) {
+        Order previous = ordersById.put(order.id(), order);
+        if (previous != null) {
+            ordersFor(previous.side()).remove(OrderKey.from(previous));
         }
-        return List.copyOf(trades);
+        ordersFor(order.side()).put(OrderKey.from(order), order);
+    }
+
+    private Set<UUID> pricePolicyOrderIdsFor(Side side) {
+        return switch (side) {
+            case BUY -> buyPricePolicyOrderIds;
+            case SELL -> sellPricePolicyOrderIds;
+        };
     }
 
     private NavigableMap<OrderKey, Order> ordersFor(Side side) {

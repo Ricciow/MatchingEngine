@@ -1,12 +1,15 @@
 package dev.ricciow.matchingengine.book;
 
 import dev.ricciow.matchingengine.trade.Trade;
+import dev.ricciow.matchingengine.strategy.PegStrategy;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 import java.util.List;
+import java.util.UUID;
 
 import static dev.ricciow.matchingengine.book.Side.BUY;
 import static dev.ricciow.matchingengine.book.Side.SELL;
@@ -15,6 +18,96 @@ import static org.junit.jupiter.api.Assertions.*;
 @DisplayName("Consumo de ordens do livro")
 class OrderBookConsumptionTest {
     private final OrderBook book = new OrderBook();
+
+    @ParameterizedTest
+    @EnumSource(Side.class)
+    @DisplayName("Consumir uma ordem inteira retorna seu trade e atualiza o preço da Peg")
+    void BookConsumesOneOrderAndUpdatesPegPrice(Side side) {
+        Order first = book.addOrder(side, 10.00, 100);
+        double nextPrice = side == BUY ? 9.00 : 11.00;
+        Order next = book.addOrder(side, nextPrice, 200);
+        Order peg = book.executeOrder(side, new PegStrategy(50)).order().orElseThrow();
+
+        Trade trade = book.ConsumeOrder(first.id(), first.quantity());
+
+        assertEquals(new Trade(10.00, 100), trade);
+        assertTrue(book.getOrderById(first.id()).isEmpty());
+        Order updatedPeg = book.getOrderById(peg.id()).orElseThrow();
+        assertEquals(nextPrice, updatedPeg.price());
+        assertEquals(peg.priority(), updatedPeg.priority());
+        assertEquals(50, updatedPeg.quantity());
+        assertEquals(List.of(next, updatedPeg), book.getOrders(side));
+    }
+
+    @ParameterizedTest
+    @EnumSource(Side.class)
+    @DisplayName("Consumir parte de uma ordem preserva sua prioridade e o preço da Peg")
+    void BookConsumesPartOfOneOrder(Side side) {
+        Order order = book.addOrder(side, 10.00, 100);
+        Order peg = book.executeOrder(side, new PegStrategy(50)).order().orElseThrow();
+
+        assertEquals(new Trade(10.00, 40), book.ConsumeOrder(order.id(), 40));
+
+        Order remaining = new Order(order.id(), order.priority(), side, 10.00, 60);
+        assertEquals(remaining, book.getOrderById(order.id()).orElseThrow());
+        assertEquals(List.of(remaining, peg), book.getOrders(side));
+    }
+
+    @ParameterizedTest
+    @EnumSource(Side.class)
+    @DisplayName("Consumir por UUID remove a ordem indicada mesmo quando ela não é a melhor do lado")
+    void BookConsumesSpecifiedOrderInsteadOfBestOrder(Side side) {
+        Order best = book.addOrder(side, 10.00, 200);
+        double worsePrice = side == BUY ? 9.00 : 11.00;
+        Order target = book.addOrder(side, worsePrice, 100);
+
+        assertEquals(new Trade(worsePrice, 100), book.ConsumeOrder(target.id(), 100));
+
+        assertTrue(book.getOrderById(target.id()).isEmpty());
+        assertEquals(best, book.getOrderById(best.id()).orElseThrow());
+        assertEquals(List.of(best), book.getOrders(side));
+    }
+
+    @Test
+    @DisplayName("Consumir uma ordem limita o trade à quantidade disponível")
+    void BookConsumesAtMostOneOrderQuantity() {
+        Order order = book.addOrder(SELL, 10.00, 100);
+
+        assertEquals(new Trade(10.00, 100), book.ConsumeOrder(order.id(), 101));
+
+        assertTrue(book.getOrderById(order.id()).isEmpty());
+        assertTrue(book.getOrders(SELL).isEmpty());
+    }
+
+    @ParameterizedTest
+    @ValueSource(longs = {0, -1})
+    @DisplayName("Consumir uma ordem rejeita quantidades não positivas sem alterar o livro")
+    void BookRejectsNonPositiveSingleOrderConsumption(long quantity) {
+        Order order = book.addOrder(SELL, 10.00, 100);
+
+        assertThrows(IllegalArgumentException.class, () -> book.ConsumeOrder(order.id(), quantity));
+
+        assertEquals(List.of(order), book.getOrders(SELL));
+        assertEquals(order, book.getOrderById(order.id()).orElseThrow());
+    }
+
+    @Test
+    @DisplayName("Consumir uma ordem inexistente ou já consumida rejeita a operação sem alterar o livro")
+    void BookRejectsConsumptionOfMissingOrders() {
+        Order buy = book.addOrder(BUY, 10.00, 200);
+        Order sell = book.addOrder(SELL, 11.00, 100);
+        Order consumed = book.addOrder(SELL, 12.00, 50);
+        book.ConsumeOrder(consumed.id(), 50);
+
+        assertThrows(IllegalArgumentException.class, () -> book.ConsumeOrder(UUID.randomUUID(), 10));
+        assertThrows(IllegalArgumentException.class, () -> book.ConsumeOrder(consumed.id(), 10));
+
+        assertEquals(List.of(buy), book.getOrders(BUY));
+        assertEquals(List.of(sell), book.getOrders(SELL));
+        assertEquals(buy, book.getOrderById(buy.id()).orElseThrow());
+        assertEquals(sell, book.getOrderById(sell.id()).orElseThrow());
+        assertTrue(book.getOrderById(consumed.id()).isEmpty());
+    }
 
     @ParameterizedTest
     @EnumSource(Side.class)
