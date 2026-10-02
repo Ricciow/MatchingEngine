@@ -98,28 +98,10 @@ public final class OrderBook {
         return Optional.of(order);
     }
 
-    /** Checks the given side's liquidity without changing any orders. */
-    public boolean canConsume(Side side, long quantity) {
-        if (quantity <= 0) {
-            return false;
-        }
-
-        for (Order order : ordersFor(side).values()) {
-            if (order.quantity() >= quantity) {
-                return true;
-            }
-            quantity -= order.quantity();
-        }
-        return false;
-    }
-
-    /** Validates liquidity, then aggregates fills by price in execution order. */
+    /** Consumes available liquidity and aggregates fills by price in execution order. */
     public List<Trade> ConsumeOrders(Side side, long quantity) {
         if (quantity <= 0) {
             throw new IllegalArgumentException("Quantity must be positive");
-        }
-        if (!canConsume(side, quantity)) {
-            throw new IllegalStateException("Insufficient liquidity on " + side + ": requested " + quantity);
         }
 
         List<Trade> trades = new ArrayList<>();
@@ -144,7 +126,9 @@ public final class OrderBook {
             tradePrice = order.price();
             tradeQuantity += reduction;
         }
-        trades.add(new Trade(tradePrice, tradeQuantity));
+        if (tradeQuantity > 0) {
+            trades.add(new Trade(tradePrice, tradeQuantity));
+        }
         return List.copyOf(trades);
     }
 

@@ -37,10 +37,10 @@ ofertas do consumo de liquidez.
 Executa imediatamente contra as ordens do lado oposto, pelo melhor preço
 disponível: uma compra consome as vendas de menor preço e uma venda consome as
 compras de maior preço. No mesmo preço, a prioridade é a ordem de chegada.
-Caso não haja liquidez suficiente no livro irá retornar um erro, isto para
-manter o comportamento separado de inserção e remoção e ao mesmo tempo não
-gerar orders que não são totalmente preenchidas, como tentar comprar 150 quando há
-100 e somente receber 100.
+Consome até a quantidade solicitada ou até esgotar a liquidez do lado oposto.
+Se forem solicitadas 150 unidades e houver apenas 100, executa as 100 disponíveis.
+A quantidade não preenchida é descartada; a Market não fica no livro. Se o lado
+oposto estiver vazio, retorna uma lista de trades vazia.
 
 ### Cancelamento
 

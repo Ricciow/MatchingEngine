@@ -18,10 +18,9 @@ class OrderBookConsumptionTest {
 
     @ParameterizedTest
     @EnumSource(Side.class)
-    @DisplayName("Consumir um lado vazio lança erro sem alterar o livro")
-    void BookRejectsConsumptionWithoutLiquidity(Side side) {
-        assertFalse(book.canConsume(side, 100));
-        assertThrows(IllegalStateException.class, () -> book.ConsumeOrders(side, 100));
+    @DisplayName("Consumir um lado vazio retorna uma lista vazia sem alterar o livro")
+    void BookReturnsNoTradesWithoutLiquidity(Side side) {
+        assertTrue(book.ConsumeOrders(side, 100).isEmpty());
         assertTrue(book.getOrders(BUY).isEmpty());
         assertTrue(book.getOrders(SELL).isEmpty());
     }
@@ -63,20 +62,22 @@ class OrderBookConsumptionTest {
 
     @ParameterizedTest
     @EnumSource(Side.class)
-    @DisplayName("Liquidez insuficiente lança erro antes de consumir qualquer ordem")
-    void BookRejectsInsufficientLiquidityWithoutConsumingOrders(Side side) {
+    @DisplayName("O livro consome apenas a liquidez disponível no lado informado")
+    void BookConsumesAvailableLiquidity(Side side) {
         Order first = book.addOrder(side, 10.50, 100);
         Order second = book.addOrder(side, 11.00, 200);
         Side opposite = side == BUY ? SELL : BUY;
         Order otherSide = book.addOrder(opposite, 10.50, 1_000);
-        List<Order> before = book.getOrders(side);
+        List<Trade> expected = side == BUY
+                ? List.of(new Trade(11.00, 200), new Trade(10.50, 100))
+                : List.of(new Trade(10.50, 100), new Trade(11.00, 200));
 
-        assertThrows(IllegalStateException.class, () -> book.ConsumeOrders(side, 301));
+        assertEquals(expected, book.ConsumeOrders(side, 301));
 
-        assertEquals(before, book.getOrders(side));
+        assertTrue(book.getOrders(side).isEmpty());
         assertEquals(List.of(otherSide), book.getOrders(opposite));
-        assertEquals(first, book.getOrderById(first.id()).orElseThrow());
-        assertEquals(second, book.getOrderById(second.id()).orElseThrow());
+        assertTrue(book.getOrderById(first.id()).isEmpty());
+        assertTrue(book.getOrderById(second.id()).isEmpty());
     }
 
     @ParameterizedTest
@@ -102,7 +103,6 @@ class OrderBookConsumptionTest {
     void BookRejectsNonPositiveConsumption(long quantity) {
         Order order = book.addOrder(SELL, 10.50, 100);
 
-        assertFalse(book.canConsume(SELL, quantity));
         assertThrows(IllegalArgumentException.class, () -> book.ConsumeOrders(SELL, quantity));
 
         assertEquals(List.of(order), book.getOrders(SELL));
@@ -111,35 +111,15 @@ class OrderBookConsumptionTest {
 
     @ParameterizedTest
     @EnumSource(Side.class)
-    @DisplayName("A validação de liquidez suporta totais maiores que Long.MAX_VALUE")
-    void BookValidatesLargeQuantitiesWithoutOverflow(Side side) {
+    @DisplayName("O consumo suporta quantidades grandes sem overflow")
+    void BookConsumesLargeQuantitiesWithoutOverflow(Side side) {
         Order first = book.addOrder(side, 10.50, Long.MAX_VALUE);
         Order second = book.addOrder(side, 10.50, Long.MAX_VALUE);
 
-        assertTrue(book.canConsume(side, Long.MAX_VALUE));
         assertEquals(List.of(new Trade(10.50, Long.MAX_VALUE)), book.ConsumeOrders(side, Long.MAX_VALUE));
 
         assertTrue(book.getOrderById(first.id()).isEmpty());
         assertEquals(List.of(second), book.getOrders(side));
     }
 
-    @ParameterizedTest
-    @EnumSource(Side.class)
-    @DisplayName("canConsume verifica apenas o lado informado sem alterar as ordens")
-    void BookChecksConsumptionWithoutChangingOrders(Side side) {
-        Order first = book.addOrder(side, 10.50, 100);
-        Order second = book.addOrder(side, 11.00, 200);
-        Side opposite = side == BUY ? SELL : BUY;
-        Order otherSide = book.addOrder(opposite, 10.50, 1_000);
-        List<Order> before = book.getOrders(side);
-
-        assertTrue(book.canConsume(side, 1));
-        assertTrue(book.canConsume(side, 300));
-        assertFalse(book.canConsume(side, 301));
-
-        assertEquals(before, book.getOrders(side));
-        assertEquals(List.of(otherSide), book.getOrders(opposite));
-        assertEquals(first, book.getOrderById(first.id()).orElseThrow());
-        assertEquals(second, book.getOrderById(second.id()).orElseThrow());
-    }
 }

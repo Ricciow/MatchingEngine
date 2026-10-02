@@ -23,10 +23,12 @@ class MarketStrategyTest {
 
     @ParameterizedTest
     @EnumSource(Side.class)
-    @DisplayName("Market em livro vazio lança erro sem criar ordens")
-    void MarketRejectsEmptyBook(Side side) {
-        assertThrows(IllegalStateException.class, () -> book.executeOrder(side, new MarketStrategy(100)));
+    @DisplayName("Market em livro vazio retorna um resultado sem ordem e sem trades")
+    void MarketReturnsNoTradesOnEmptyBook(Side side) {
+        ExecutionResult result = book.executeOrder(side, new MarketStrategy(100));
 
+        assertTrue(result.order().isEmpty());
+        assertTrue(result.trades().isEmpty());
         assertTrue(book.getOrders(BUY).isEmpty());
         assertTrue(book.getOrders(SELL).isEmpty());
     }
@@ -37,8 +39,10 @@ class MarketStrategyTest {
     void MarketOnlyConsumesOppositeOrders(Side side) {
         Order existing = book.executeOrder(side, new LimitStrategy(100, 10.50)).order().orElseThrow();
 
-        assertThrows(IllegalStateException.class, () -> book.executeOrder(side, new MarketStrategy(100)));
+        ExecutionResult result = book.executeOrder(side, new MarketStrategy(100));
 
+        assertTrue(result.order().isEmpty());
+        assertTrue(result.trades().isEmpty());
         assertEquals(List.of(existing), book.getOrders(side));
         assertEquals(existing, book.getOrderById(existing.id()).orElseThrow());
     }
@@ -63,19 +67,43 @@ class MarketStrategyTest {
 
     @ParameterizedTest
     @EnumSource(Side.class)
-    @DisplayName("Market com liquidez insuficiente lança erro sem consumir nenhuma ordem")
-    void MarketRejectsInsufficientLiquidity(Side side) {
+    @DisplayName("Market consome a liquidez disponível e descarta a quantidade não preenchida")
+    void MarketConsumesAvailableLiquidity(Side side) {
         Side opposite = opposite(side);
         Order sameSide = book.executeOrder(side, new LimitStrategy(100, 10.50)).order().orElseThrow();
         Order first = book.executeOrder(opposite, new LimitStrategy(50, 10.50)).order().orElseThrow();
         Order second = book.executeOrder(opposite, new LimitStrategy(75, 10.50)).order().orElseThrow();
 
-        assertThrows(IllegalStateException.class, () -> book.executeOrder(side, new MarketStrategy(200)));
+        ExecutionResult result = book.executeOrder(side, new MarketStrategy(200));
 
-        assertEquals(first, book.getOrderById(first.id()).orElseThrow());
-        assertEquals(second, book.getOrderById(second.id()).orElseThrow());
-        assertEquals(List.of(first, second), book.getOrders(opposite));
+        assertTrue(result.order().isEmpty());
+        assertEquals(List.of(new Trade(10.50, 125)), result.trades());
+        assertTrue(book.getOrderById(first.id()).isEmpty());
+        assertTrue(book.getOrderById(second.id()).isEmpty());
+        assertTrue(book.getOrders(opposite).isEmpty());
         assertEquals(List.of(sameSide), book.getOrders(side));
+    }
+
+    @Test
+    @DisplayName("Markets sucessivas executam até onde houver liquidez, conforme o exemplo do desafio")
+    void MarketConsumesAvailableLiquidityAcrossExecutions() {
+        book.executeOrder(BUY, new LimitStrategy(100, 10.00));
+        Order firstSell = book.executeOrder(SELL, new LimitStrategy(100, 20.00)).order().orElseThrow();
+        Order secondSell = book.executeOrder(SELL, new LimitStrategy(200, 20.00)).order().orElseThrow();
+
+        ExecutionResult first = book.executeOrder(BUY, new MarketStrategy(150));
+
+        assertEquals(List.of(new Trade(20.00, 150)), first.trades());
+        assertTrue(book.getOrderById(firstSell.id()).isEmpty());
+        assertEquals(150, book.getOrderById(secondSell.id()).orElseThrow().quantity());
+
+        ExecutionResult second = book.executeOrder(BUY, new MarketStrategy(200));
+        ExecutionResult third = book.executeOrder(SELL, new MarketStrategy(200));
+
+        assertEquals(List.of(new Trade(20.00, 150)), second.trades());
+        assertEquals(List.of(new Trade(10.00, 100)), third.trades());
+        assertTrue(book.getOrders(BUY).isEmpty());
+        assertTrue(book.getOrders(SELL).isEmpty());
     }
 
     @Test

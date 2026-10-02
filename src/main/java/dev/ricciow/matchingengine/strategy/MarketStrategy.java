@@ -6,7 +6,7 @@ import dev.ricciow.matchingengine.book.Side;
 
 import java.util.Optional;
 
-/** Executes against the opposite side only when the full quantity is available. */
+/** Executes against the available liquidity on the opposite side. */
 public final class MarketStrategy implements OrderStrategy {
     private final long quantity;
 
