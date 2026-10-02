@@ -17,8 +17,8 @@ permite localizar ordens para consulta, atualização e remoção.
 Toda order retorna um resultado com dois campos:
 
 - `order`: a ordem que ficou no livro. É vazia para orders do tipo Market.
-- `trades`: a lista de execuções. É vazia para Limit e contém um trade por fill
-  para Market, incluindo fills parciais.
+- `trades`: a lista de execuções. É vazia para Limit e Cancelamento. 
+Contém um trade por fill para Market, incluindo fills parciais.
 
 ### Tipo Limit
 
@@ -40,3 +40,7 @@ Caso não haja liquidez suficiente no livro irá retornar um erro, isto para
 manter o comportamento separado de inserção e remoção e ao mesmo tempo não
 gerar orders que não são totalmente preenchidas, como tentar comprar 150 quando há
 100 e somente receber 100.
+
+### Cancelamento
+
+Remove uma ordem por seu id do livro.
