@@ -45,8 +45,7 @@ oposto estiver vazio, retorna uma lista de trades vazia.
 
 ### Tipo Peg
 
-Ordens Peg acompanham o melhor preço das Limits do mesmo lado: compras seguem
-o Bid e vendas seguem o Offer. Sem uma Limit de referência, usam o preço de 1 centavo,
+Ordens Peg recebem um lado de referência, sem uma Limit de referência, usam o preço de 1 centavo,
 pois orders com valor 0 são inválidas e esse teoricamente seria o menor valor possível.
 As Pegs atualizam o seu preço assim que a referência muda, inclusive entre fills
 de um Market. O próximo fill considera o novo preço e a prioridade original.

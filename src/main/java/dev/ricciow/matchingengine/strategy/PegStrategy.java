@@ -9,16 +9,20 @@ import dev.ricciow.matchingengine.policy.PriceUpdatePolicy;
 import java.util.List;
 import java.util.Optional;
 
-/** Adds a passive order that follows the reference price on its side. */
+/** Adds a passive order that follows the best Limit price on the reference side. */
 public final class PegStrategy implements OrderStrategy {
     private final long quantity;
-    private final PriceUpdatePolicy priceUpdatePolicy = new FollowPricePolicy();
+    private final PriceUpdatePolicy priceUpdatePolicy;
 
-    public PegStrategy(long quantity) {
+    public PegStrategy(long quantity, Side referenceSide) {
         if (quantity <= 0) {
             throw new IllegalArgumentException("Quantity must be positive");
         }
+        if (referenceSide == null) {
+            throw new IllegalArgumentException("Reference side must not be null");
+        }
         this.quantity = quantity;
+        this.priceUpdatePolicy = new FollowPricePolicy(referenceSide);
     }
 
     @Override

@@ -33,14 +33,15 @@ class OrderBookPricePolicyTest {
     void BookUpdatesPolicyPricesAfterPriceChanges() {
         OrderBook book = new OrderBook();
         int[] updates = {0, 0};
-        FollowPricePolicy follow = new FollowPricePolicy();
+        FollowPricePolicy buyFollow = new FollowPricePolicy(BUY);
+        FollowPricePolicy sellFollow = new FollowPricePolicy(SELL);
         PriceUpdatePolicy buyPolicy = (currentBook, side) -> {
             updates[0]++;
-            return follow.resolvePrice(currentBook, side);
+            return buyFollow.resolvePrice(currentBook, side);
         };
         PriceUpdatePolicy sellPolicy = (currentBook, side) -> {
             updates[1]++;
-            return follow.resolvePrice(currentBook, side);
+            return sellFollow.resolvePrice(currentBook, side);
         };
         Order buyLimit = book.addOrder(BUY, 10.00, 100);
         Order sellLimit = book.addOrder(SELL, 20.00, 100);

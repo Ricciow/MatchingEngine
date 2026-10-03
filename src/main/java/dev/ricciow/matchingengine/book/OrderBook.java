@@ -60,7 +60,7 @@ public final class OrderBook {
         storeOrder(order);
 
         if (priceUpdatePolicy != null) {
-            pricePolicyOrderIdsFor(side).add(id);
+            pricePolicyOrderIdsFor(priceUpdatePolicy.referenceSide(side)).add(id);
         }
 
         nextPriority++;
@@ -120,7 +120,9 @@ public final class OrderBook {
 
         ordersFor(order.side()).remove(OrderKey.from(order));
 
-        pricePolicyOrderIdsFor(order.side()).remove(id);
+        if (order.priceUpdatePolicy() != null) {
+            pricePolicyOrderIdsFor(order.priceUpdatePolicy().referenceSide(order.side())).remove(id);
+        }
         updatePolicyPrices(order.side());
         return Optional.of(order);
     }
@@ -177,13 +179,13 @@ public final class OrderBook {
         return consolidated;
     }
 
-    /** Runs the policy on all orders with policies */
+    /** Reprices orders that follow the changed side. */
     private void updatePolicyPrices(Side side) {
         for (UUID id : pricePolicyOrderIdsFor(side)) {
             Order order = ordersById.get(id);
-            double price = order.priceUpdatePolicy().resolvePrice(this, side);
+            double price = order.priceUpdatePolicy().resolvePrice(this, order.side());
             if (price != order.price()) {
-                storeOrder(new Order(id, order.priority(), side, price, order.quantity(), order.priceUpdatePolicy()));
+                storeOrder(new Order(id, order.priority(), order.side(), price, order.quantity(), order.priceUpdatePolicy()));
             }
         }
     }

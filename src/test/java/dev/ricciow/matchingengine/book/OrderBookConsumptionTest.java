@@ -26,7 +26,7 @@ class OrderBookConsumptionTest {
         Order first = book.addOrder(side, 10.00, 100);
         double nextPrice = side == BUY ? 9.00 : 11.00;
         Order next = book.addOrder(side, nextPrice, 200);
-        Order peg = book.executeOrder(side, new PegStrategy(50)).order().orElseThrow();
+        Order peg = book.executeOrder(side, new PegStrategy(50, side)).order().orElseThrow();
 
         Trade trade = book.ConsumeOrder(first.id(), first.quantity());
 
@@ -44,7 +44,7 @@ class OrderBookConsumptionTest {
     @DisplayName("Consumir parte de uma ordem preserva sua prioridade e o preço da Peg")
     void BookConsumesPartOfOneOrder(Side side) {
         Order order = book.addOrder(side, 10.00, 100);
-        Order peg = book.executeOrder(side, new PegStrategy(50)).order().orElseThrow();
+        Order peg = book.executeOrder(side, new PegStrategy(50, side)).order().orElseThrow();
 
         assertEquals(new Trade(10.00, 40), book.ConsumeOrder(order.id(), 40));
 

@@ -96,19 +96,24 @@ public class Console {
     }
 
     private void pegCommand(String[] parts) {
-        if (parts.length != 3) {
-            System.out.println("Usage: peg <buy|sell> <qty>");
+        if (parts.length != 4) {
+            System.out.println("Usage: peg <bid|offer> <buy|sell> <qty>");
             return;
         }
 
         try {
-            Side side = switch (parts[1]) {
+            Side referenceSide = switch (parts[1]) {
+                case "bid" -> Side.BUY;
+                case "offer" -> Side.SELL;
+                default -> throw new IllegalArgumentException("Reference must be bid or offer");
+            };
+            Side side = switch (parts[2]) {
                 case "buy" -> Side.BUY;
                 case "sell" -> Side.SELL;
                 default -> throw new IllegalArgumentException("Side must be buy or sell");
             };
-            long quantity = Long.parseLong(parts[2]);
-            ExecutionResult result = book.executeOrder(side, new PegStrategy(quantity));
+            long quantity = Long.parseLong(parts[3]);
+            ExecutionResult result = book.executeOrder(side, new PegStrategy(quantity, referenceSide));
             result.order().ifPresent(order -> { System.out.println("Order created: " + order); });
         } catch (IllegalArgumentException e) {
             System.out.println("Invalid peg command: " + e.getMessage());
