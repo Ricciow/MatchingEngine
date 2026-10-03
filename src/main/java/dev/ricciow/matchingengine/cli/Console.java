@@ -123,6 +123,7 @@ public class Console {
     private void cancelCommand(String[] parts) {
         if (parts.length != 3) {
             System.out.println("Usage: cancel order <id>");
+            return;
         }
 
         try {
@@ -137,6 +138,7 @@ public class Console {
     private void updateCommand(String[] parts) {
         if (parts.length != 5) {
             System.out.println("Usage: update order <id> <price> <quantity>");
+            return;
         }
 
         try {
