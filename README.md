@@ -1,5 +1,42 @@
 # Matching Engine
 
+## Como rodar
+
+- JDK 21 ou superior, com `java` e `javac` disponíveis no `PATH`.
+- Maven, com `mvn` disponível no `PATH`.
+
+Na raiz do projeto, compile e execute os testes:
+
+```sh
+mvn clean package
+```
+
+Depois, inicie o console interativo:
+
+```sh
+java -jar target/MatchingEngine-1.0-SNAPSHOT.jar
+```
+
+Para executar somente os testes:
+
+```sh
+mvn test
+```
+
+### Comandos do console
+
+Digite os comandos no prompt `>>>`. Use ponto como separador decimal nos preços.
+
+| Comando | Descrição |
+| --- | --- |
+| `limit <buy\|sell> <price> <qty>` | Insere uma ordem Limit com preço e quantidade. |
+| `market <buy\|sell> <qty>` | Executa uma ordem Market. |
+| `peg <bid\|offer> <buy\|sell> <qty>` | Insere uma ordem Peg; `bid` referencia as compras e `offer`, as vendas. |
+| `book` | Exibe o livro de ofertas. |
+| `cancel order <id>` | Cancela uma ordem pelo UUID retornado na criação. |
+| `update order <id> <price> <qty>` | Atualiza o preço e a quantidade de uma ordem. |
+| `quit` | Encerra o programa. |
+
 ## Livro de ofertas
 
 O livro usa um TreeMap com chave composta de preço e prioridade:
