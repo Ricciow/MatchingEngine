@@ -32,4 +32,8 @@ public record Order(
     public String toString() {
         return side + " " + quantity + " @ " + price + " " + id.toString();
     }
+
+    public String simplifiedString() {
+        return quantity + " @ " + price;
+    }
 }

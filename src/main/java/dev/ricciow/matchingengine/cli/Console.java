@@ -1,14 +1,12 @@
 package dev.ricciow.matchingengine.cli;
 
 import dev.ricciow.matchingengine.book.ExecutionResult;
+import dev.ricciow.matchingengine.book.Order;
 import dev.ricciow.matchingengine.book.OrderBook;
 import dev.ricciow.matchingengine.book.Side;
 import dev.ricciow.matchingengine.strategy.*;
 
-import java.util.Locale;
-import java.util.Objects;
-import java.util.Scanner;
-import java.util.UUID;
+import java.util.*;
 
 public class Console {
     Scanner scanner = new Scanner(System.in);
@@ -42,6 +40,7 @@ public class Console {
                 pegCommand(parts);
                 break;
             case "book":
+                bookCommand();
                 break;
             case "cancel":
                 cancelCommand(parts);
@@ -143,6 +142,32 @@ public class Console {
             result.order().ifPresent(order -> { System.out.println("Order updated: " + order); });
         } catch (IllegalArgumentException e) {
             System.out.println("Invalid update command: " + e.getMessage());
+        }
+    }
+
+    private void bookCommand() {
+        List<Order> buyOrders = book.getOrders(Side.BUY);
+        List<Order> sellOrders = book.getOrders(Side.SELL);
+
+        List<String> buyOrdersStrings = buyOrders.stream().map(Order::simplifiedString).toList();
+        List<String> sellOrderStrings = sellOrders.stream().map(Order::simplifiedString).toList();
+
+        String buyHeader = "Ordens de Compra";
+        String sellHeader = "Ordens de Venda";
+        int buyWidth = Math.max(buyHeader.length(),
+                buyOrdersStrings.stream().mapToInt(String::length).max().orElse(0));
+        int sellWidth = Math.max(sellHeader.length(),
+                sellOrderStrings.stream().mapToInt(String::length).max().orElse(0));
+        String rowFormat = "%-" + buyWidth + "s | %s%n";
+
+        System.out.printf(rowFormat, buyHeader, sellHeader);
+        System.out.println("-".repeat(buyWidth + 1) + "|" + "-".repeat(sellWidth + 1));
+
+        int rowCount = Math.max(buyOrdersStrings.size(), sellOrderStrings.size());
+        for (int i = 0; i < rowCount; i++) {
+            String buy = i < buyOrdersStrings.size() ? buyOrdersStrings.get(i) : "";
+            String sell = i < sellOrderStrings.size() ? sellOrderStrings.get(i) : "";
+            System.out.printf(rowFormat, buy, sell);
         }
     }
 }
