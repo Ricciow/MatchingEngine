@@ -27,4 +27,9 @@ public record Order(
             throw new IllegalArgumentException("Quantity must be positive");
         }
     }
+
+    @Override
+    public String toString() {
+        return side + " " + quantity + " @ " + price + " " + id.toString();
+    }
 }
