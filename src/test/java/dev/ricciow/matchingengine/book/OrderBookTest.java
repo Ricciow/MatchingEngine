@@ -24,7 +24,6 @@ class OrderBookTest {
     void BookStartsEmpty(Side side) {
         assertTrue(book.getOrders(side).isEmpty());
         assertTrue(book.bestOrder(side).isEmpty());
-        assertTrue(book.bestPrice(side).isEmpty());
     }
 
     @Test
@@ -37,7 +36,6 @@ class OrderBookTest {
 
         assertEquals(List.of(firstHighest, secondHighest, middle, lowest), book.getOrders(BUY));
         assertEquals(Optional.of(firstHighest), book.bestOrder(BUY));
-        assertEquals(10.10, book.bestPrice(BUY).orElseThrow());
     }
 
     @Test
@@ -50,7 +48,6 @@ class OrderBookTest {
 
         assertEquals(List.of(firstLowest, secondLowest, middle, highest), book.getOrders(SELL));
         assertEquals(Optional.of(firstLowest), book.bestOrder(SELL));
-        assertEquals(9.99, book.bestPrice(SELL).orElseThrow());
     }
 
     @ParameterizedTest
@@ -109,7 +106,6 @@ class OrderBookTest {
         book.removeOrder(second.id());
 
         assertEquals(Optional.of(nextPrice), book.bestOrder(side));
-        assertEquals(10.00, book.bestPrice(side).orElseThrow());
     }
 
     @Test
@@ -138,7 +134,6 @@ class OrderBookTest {
 
         assertTrue(book.getOrders(side).isEmpty());
         assertTrue(book.bestOrder(side).isEmpty());
-        assertTrue(book.bestPrice(side).isEmpty());
         assertTrue(book.getOrderById(order.id()).isEmpty());
 
         Order replacement = book.addOrder(side, 10.00, 200);

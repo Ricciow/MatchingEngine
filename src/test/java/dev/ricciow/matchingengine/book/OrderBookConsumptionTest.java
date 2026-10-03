@@ -184,7 +184,7 @@ class OrderBookConsumptionTest {
 
         assertEquals(List.of(new Trade(10.50, 300)), book.ConsumeOrders(side, 300));
         assertTrue(book.getOrders(side).isEmpty());
-        assertTrue(book.bestPrice(side).isEmpty());
+        assertTrue(book.bestOrder(side).isEmpty());
         assertTrue(book.getOrderById(first.id()).isEmpty());
         assertTrue(book.getOrderById(second.id()).isEmpty());
         assertEquals(List.of(otherSide), book.getOrders(opposite));

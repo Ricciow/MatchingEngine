@@ -73,11 +73,6 @@ public final class OrderBook {
         return entry == null ? Optional.empty() : Optional.of(entry.getValue());
     }
 
-    public OptionalDouble bestPrice(Side side) {
-        Optional<Order> order = bestOrder(side);
-        return order.map(value -> OptionalDouble.of(value.price())).orElseGet(OptionalDouble::empty);
-    }
-
     /** Returns the best price on this side, excluding orders with a price policy. */
     public OptionalDouble bestLimitPrice(Side side) {
         for (Order order : ordersFor(side).values()) {

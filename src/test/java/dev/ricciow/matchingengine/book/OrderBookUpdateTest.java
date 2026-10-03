@@ -33,7 +33,6 @@ class OrderBookUpdateTest {
         assertEquals(Optional.of(updated), book.getOrderById(original.id()));
         assertEquals(List.of(updated, other), book.getOrders(side));
         assertEquals(Optional.of(updated), book.bestOrder(side));
-        assertEquals(bestPrice, book.bestPrice(side).orElseThrow());
         assertEquals(List.of(original), snapshot);
         assertEquals(Optional.of(updated), book.removeOrder(updated.id()));
         assertEquals(List.of(other), book.getOrders(side));
