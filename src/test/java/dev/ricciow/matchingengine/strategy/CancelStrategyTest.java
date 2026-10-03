@@ -23,7 +23,7 @@ class CancelStrategyTest {
 
     @ParameterizedTest
     @EnumSource(Side.class)
-    @DisplayName("Cancel remove apenas a ordem indicada pelo UUID e não gera trades")
+    @DisplayName("Cancel retorna a ordem removida, remove apenas o UUID indicado e não gera trades")
     void CancelRemovesOnlyRequestedOrder(Side side) {
         Side opposite = side == BUY ? SELL : BUY;
         Order target = book.addOrder(side, 10.00, 100);
@@ -32,7 +32,7 @@ class CancelStrategyTest {
 
         ExecutionResult result = book.executeOrder(side, new CancelStrategy(target.id()));
 
-        assertTrue(result.order().isEmpty());
+        assertEquals(Optional.of(target), result.order());
         assertTrue(result.trades().isEmpty());
         assertTrue(book.getOrderById(target.id()).isEmpty());
         assertEquals(List.of(remaining), book.getOrders(side));
@@ -47,11 +47,13 @@ class CancelStrategyTest {
         Order target = book.addOrder(BUY, 10.00, 100);
         Order remaining = book.addOrder(SELL, 11.00, 200);
         CancelStrategy strategy = new CancelStrategy(target.id());
-        book.executeOrder(BUY, strategy);
+        ExecutionResult cancelled = book.executeOrder(BUY, strategy);
 
         ExecutionResult repeated = book.executeOrder(BUY, strategy);
         ExecutionResult missing = book.executeOrder(SELL, new CancelStrategy(UUID.randomUUID()));
 
+        assertEquals(Optional.of(target), cancelled.order());
+        assertTrue(cancelled.trades().isEmpty());
         assertTrue(repeated.order().isEmpty());
         assertTrue(repeated.trades().isEmpty());
         assertEquals(repeated, missing);

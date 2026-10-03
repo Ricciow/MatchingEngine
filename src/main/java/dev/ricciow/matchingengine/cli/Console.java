@@ -128,8 +128,12 @@ public class Console {
 
         try {
             UUID orderId = UUID.fromString(parts[2]);
-            book.executeOrder(null, new CancelStrategy(orderId));
-            System.out.println("Order cancelled: " + orderId);
+            ExecutionResult result = book.executeOrder(null, new CancelStrategy(orderId));
+            if(result.order().isPresent()) {
+                System.out.println("Order cancelled: " + result.order().get());
+            } else {
+                System.out.println("Order failed to cancel");
+            }
         } catch (IllegalArgumentException e) {
             System.out.println("Invalid cancel command: " + e.getMessage());
         }

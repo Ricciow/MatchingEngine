@@ -1,9 +1,9 @@
 package dev.ricciow.matchingengine.strategy;
 
 import dev.ricciow.matchingengine.book.ExecutionResult;
+import dev.ricciow.matchingengine.book.Order;
 import dev.ricciow.matchingengine.book.OrderBook;
 import dev.ricciow.matchingengine.book.Side;
-
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -18,7 +18,7 @@ public final class CancelStrategy implements OrderStrategy {
 
     @Override
     public ExecutionResult execute(OrderBook book, Side side) {
-        book.removeOrder(id);
-        return new ExecutionResult(Optional.empty(), List.of());
+        Optional<Order> removedOrder = book.removeOrder(id);
+        return new ExecutionResult(removedOrder, List.of());
     }
 }
