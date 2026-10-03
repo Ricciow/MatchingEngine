@@ -56,7 +56,7 @@ public class Console {
 
     private void limitCommand(String[] parts) {
         if (parts.length != 4) {
-            System.out.println("Usage: limit <buy|sell> <qty> <price>");
+            System.out.println("Usage: limit <buy|sell> <price> <qty>");
             return;
         }
 
