@@ -13,6 +13,88 @@ import static org.junit.jupiter.api.Assertions.*;
 
 @DisplayName("Atualização de preços por policy no livro")
 class OrderBookPricePolicyTest {
+    @Test
+    void CrossedPegsFollowWinningBuyLimitWhenOfferLimitIsAbsent() {
+        OrderBook book = new OrderBook();
+        Order limit = book.addOrder(BUY, 10, 100);
+        Order buyPeg = book.executeOrder(BUY,
+                new dev.ricciow.matchingengine.strategy.PegStrategy(50, SELL)).order().orElseThrow();
+        assertEquals(0.01, buyPeg.price());
+        Order sellPeg = book.executeOrder(SELL,
+                new dev.ricciow.matchingengine.strategy.PegStrategy(50, BUY)).order().orElseThrow();
+        assertEquals(10, sellPeg.price());
+        assertEquals(10, book.getOrderById(buyPeg.id()).orElseThrow().price());
+        assertEquals(java.util.List.of(new dev.ricciow.matchingengine.trade.Trade(10, 50)),
+                book.ConsumeOrders(SELL, 50));
+        assertEquals(0.01, book.getOrderById(buyPeg.id()).orElseThrow().price());
+        assertEquals(limit, book.getOrderById(limit.id()).orElseThrow());
+    }
+
+    @Test
+    void SameSidePegFollowsCrossSidePegWithoutSustainingStalePrice() {
+        OrderBook book = new OrderBook();
+        book.addOrder(BUY, 9, 200);
+        Order sellLimit = book.addOrder(SELL, 12, 200);
+        Order bidPeg = book.executeOrder(BUY,
+                new dev.ricciow.matchingengine.strategy.PegStrategy(50, BUY)).order().orElseThrow();
+        Order offerPeg = book.executeOrder(BUY,
+                new dev.ricciow.matchingengine.strategy.PegStrategy(50, SELL)).order().orElseThrow();
+        assertEquals(12, book.getOrderById(bidPeg.id()).orElseThrow().price());
+        assertEquals(12, offerPeg.price());
+        book.addOrder(BUY, 8, 10);
+        assertEquals(12, book.getOrderById(bidPeg.id()).orElseThrow().price());
+        book.updateOrder(sellLimit.id(), 11, 200);
+        assertEquals(11, book.getOrderById(bidPeg.id()).orElseThrow().price());
+        assertEquals(11, book.getOrderById(offerPeg.id()).orElseThrow().price());
+        book.ConsumeOrders(SELL, 200);
+        assertEquals(9, book.getOrderById(bidPeg.id()).orElseThrow().price());
+        assertEquals(0.01, book.getOrderById(offerPeg.id()).orElseThrow().price());
+        book.addOrder(BUY, 7, 10);
+        assertEquals(9, book.getOrderById(bidPeg.id()).orElseThrow().price());
+        book.removeOrder(offerPeg.id());
+        assertEquals(9, book.getOrderById(bidPeg.id()).orElseThrow().price());
+    }
+
+    @Test
+    void CrossedPegsUseOldestAnchorAndReelectAfterRemoval() {
+        assertTimeoutPreemptively(java.time.Duration.ofSeconds(2), () -> {
+            OrderBook book = new OrderBook();
+            Order buyLimit = book.addOrder(BUY, 10, 100);
+            book.addOrder(SELL, 20, 100);
+            Order oldest = book.addOrder(SELL, 10, 50, new FollowPricePolicy(BUY));
+            Order buyPeg = book.addOrder(BUY, 10, 50, new FollowPricePolicy(SELL));
+            Order nextSellPeg = book.addOrder(SELL, 10, 50, new FollowPricePolicy(BUY));
+
+            assertEquals(10, book.getOrderById(buyPeg.id()).orElseThrow().price());
+            book.updateOrder(buyLimit.id(), 12, 100);
+            assertEquals(12, book.getOrderById(buyPeg.id()).orElseThrow().price());
+            assertEquals(12, book.getOrderById(nextSellPeg.id()).orElseThrow().price());
+
+            book.removeOrder(buyLimit.id());
+            assertEquals(0.01, book.getOrderById(buyPeg.id()).orElseThrow().price());
+            book.removeOrder(oldest.id());
+            // The BUY Peg is now oldest; its SELL Limit reference anchors the cycle.
+            assertEquals(20, book.getOrderById(buyPeg.id()).orElseThrow().price());
+            assertEquals(20, book.getOrderById(nextSellPeg.id()).orElseThrow().price());
+            assertEquals(buyPeg.priority(), book.getOrderById(buyPeg.id()).orElseThrow().priority());
+        });
+    }
+
+    @Test
+    void CrossedPegsWithoutLimitsTerminateAtMinimumPrice() {
+        assertTimeoutPreemptively(java.time.Duration.ofSeconds(2), () -> {
+            OrderBook book = new OrderBook();
+            Order buyPeg = book.addOrder(BUY, 0.01, 50, new FollowPricePolicy(SELL));
+            Order sellPeg = book.addOrder(SELL, 0.01, 50, new FollowPricePolicy(BUY));
+            Order limit = book.addOrder(SELL, 10, 100);
+            assertEquals(10, book.getOrderById(buyPeg.id()).orElseThrow().price());
+            assertEquals(10, book.getOrderById(sellPeg.id()).orElseThrow().price());
+            book.removeOrder(limit.id());
+            assertEquals(0.01, book.getOrderById(buyPeg.id()).orElseThrow().price());
+            assertEquals(0.01, book.getOrderById(sellPeg.id()).orElseThrow().price());
+        });
+    }
+
     @ParameterizedTest
     @ValueSource(doubles = {0, -1, Double.NaN, Double.POSITIVE_INFINITY})
     @DisplayName("Ordens com policy ignoram até preços inválidos informados na atualização")

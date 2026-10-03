@@ -2,17 +2,16 @@ package dev.ricciow.matchingengine.book;
 
 import dev.ricciow.matchingengine.strategy.OrderStrategy;
 import dev.ricciow.matchingengine.policy.PriceUpdatePolicy;
+import dev.ricciow.matchingengine.policy.FollowPricePolicy;
 import dev.ricciow.matchingengine.trade.Trade;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.NavigableMap;
 import java.util.Optional;
 import java.util.OptionalDouble;
-import java.util.Set;
 import java.util.TreeMap;
 import java.util.UUID;
 
@@ -39,8 +38,7 @@ public final class OrderBook {
     private final NavigableMap<OrderKey, Order> buys = new TreeMap<>(BUY_PRIORITY);
     private final NavigableMap<OrderKey, Order> sells = new TreeMap<>(SELL_PRIORITY);
     private final Map<UUID, Order> ordersById = new HashMap<>();
-    private final Set<UUID> buyPricePolicyOrderIds = new HashSet<>();
-    private final Set<UUID> sellPricePolicyOrderIds = new HashSet<>();
+    private final NavigableMap<Long, UUID> pricePolicyOrderIds = new TreeMap<>();
 
     private long nextPriority = 1;
 
@@ -60,7 +58,7 @@ public final class OrderBook {
         storeOrder(order);
 
         if (priceUpdatePolicy != null) {
-            pricePolicyOrderIdsFor(priceUpdatePolicy.referenceSide(side)).add(id);
+            pricePolicyOrderIds.put(order.priority(), id);
         }
 
         nextPriority++;
@@ -91,6 +89,10 @@ public final class OrderBook {
         return Optional.ofNullable(ordersById.get(id));
     }
 
+    public NavigableMap<Long, UUID> getPricePolicyOrderIds() {
+        return new TreeMap<>(pricePolicyOrderIds);
+    }
+
     /** Updates price and quantity while preserving identity, side and arrival priority. */
     public Optional<Order> updateOrder(UUID id, double price, long quantity) {
         Order order = ordersById.get(id);
@@ -116,7 +118,7 @@ public final class OrderBook {
         ordersFor(order.side()).remove(OrderKey.from(order));
 
         if (order.priceUpdatePolicy() != null) {
-            pricePolicyOrderIdsFor(order.priceUpdatePolicy().referenceSide(order.side())).remove(id);
+            pricePolicyOrderIds.remove(order.priority());
         }
         updatePolicyPrices(order.side());
         return Optional.of(order);
@@ -176,9 +178,17 @@ public final class OrderBook {
 
     /** Reprices orders that follow the changed side. */
     private void updatePolicyPrices(Side side) {
-        for (UUID id : pricePolicyOrderIdsFor(side)) {
+        Map<UUID, Double> prices = new HashMap<>();
+        List<Order> policyOrders = pricePolicyOrderIds.values().stream().map(ordersById::get).toList();
+        for (Order order : policyOrders) {
+            if (order.priceUpdatePolicy() instanceof FollowPricePolicy
+                    || order.priceUpdatePolicy().referenceSide(order.side()) == side) {
+                prices.put(order.id(), order.priceUpdatePolicy().resolvePrice(this, order.side()));
+            }
+        }
+        for (UUID id : pricePolicyOrderIds.values()) {
             Order order = ordersById.get(id);
-            double price = order.priceUpdatePolicy().resolvePrice(this, order.side());
+            double price = prices.getOrDefault(id, order.price());
             if (price != order.price()) {
                 storeOrder(new Order(id, order.priority(), order.side(), price, order.quantity(), order.priceUpdatePolicy()));
             }
@@ -192,13 +202,6 @@ public final class OrderBook {
             ordersFor(previous.side()).remove(OrderKey.from(previous));
         }
         ordersFor(order.side()).put(OrderKey.from(order), order);
-    }
-
-    private Set<UUID> pricePolicyOrderIdsFor(Side side) {
-        return switch (side) {
-            case BUY -> buyPricePolicyOrderIds;
-            case SELL -> sellPricePolicyOrderIds;
-        };
     }
 
     private NavigableMap<OrderKey, Order> ordersFor(Side side) {

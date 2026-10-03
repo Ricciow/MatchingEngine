@@ -9,7 +9,7 @@ import dev.ricciow.matchingengine.policy.PriceUpdatePolicy;
 import java.util.List;
 import java.util.Optional;
 
-/** Adds a passive order that follows the best Limit price on the reference side. */
+/** Adds a passive order that follows prices on the selected reference side. */
 public final class PegStrategy implements OrderStrategy {
     private final long quantity;
     private final PriceUpdatePolicy priceUpdatePolicy;

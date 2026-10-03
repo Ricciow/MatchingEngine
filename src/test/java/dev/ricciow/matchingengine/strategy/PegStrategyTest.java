@@ -133,15 +133,15 @@ class PegStrategyTest {
 
     @ParameterizedTest
     @EnumSource(Side.class)
-    @DisplayName("Pegs com referências cruzadas ignoram preços de outras Pegs")
-    void PegDoesNotFollowOtherPegs(Side side) {
+    @DisplayName("Pegs seguem outras Pegs e usam a mais velha como âncora de ciclos")
+    void PegFollowsOtherPegsAndBreaksCycles(Side side) {
         Side referenceSide = side == BUY ? SELL : BUY;
         Order limit = book.addOrder(side, 10.00, 100);
         Order oppositePeg = book.executeOrder(referenceSide, new PegStrategy(50, side)).order().orElseThrow();
         Order peg = book.executeOrder(side, new PegStrategy(150, referenceSide)).order().orElseThrow();
 
         assertEquals(10.00, oppositePeg.price());
-        assertEquals(0.01, peg.price());
+        assertEquals(10.00, peg.price());
         book.removeOrder(limit.id());
         assertEquals(0.01, book.getOrderById(oppositePeg.id()).orElseThrow().price());
         assertEquals(0.01, book.getOrderById(peg.id()).orElseThrow().price());
